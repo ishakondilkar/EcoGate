@@ -1,83 +1,81 @@
 /* =========================================================
-   EcoGate — Complete JavaScript
-   IoT-Based Smart Sustainable Airport Gate Management
+   EcoGate - Smart Sustainable Airport Gate Management
+   Pure Vanilla JavaScript
+   Software-based IoT Simulation
    ========================================================= */
 
+"use strict";
 
 /* =========================================================
-   1. GATE DATA
+   1. GATE SENSOR DATA
    ========================================================= */
 
 const gateData = {
-
   A1: {
-    passengers: 145,
+    occupancy: 40,
     temperature: 24,
-    humidity: 51,
-    naturalLight: 72,
-    airQuality: 91,
-    water: 31
+    humidity: 45,
+    light: 80,
+    airQuality: 85,
+    water: 18
   },
 
   A2: {
-    passengers: 198,
-    temperature: 27,
-    humidity: 58,
-    naturalLight: 48,
-    airQuality: 78,
-    water: 43
+    occupancy: 132,
+    temperature: 27.5,
+    humidity: 55,
+    light: 55,
+    airQuality: 62,
+    water: 31
   },
 
   A3: {
-    passengers: 82,
-    temperature: 23,
-    humidity: 46,
-    naturalLight: 88,
-    airQuality: 96,
-    water: 24
+    occupancy: 205,
+    temperature: 30.5,
+    humidity: 68,
+    light: 25,
+    airQuality: 38,
+    water: 52
   },
 
   A4: {
-    passengers: 215,
-    temperature: 28,
-    humidity: 63,
-    naturalLight: 35,
-    airQuality: 69,
-    water: 49
+    occupancy: 12,
+    temperature: 22,
+    humidity: 40,
+    light: 65,
+    airQuality: 90,
+    water: 9
   }
-
 };
 
 
 /* =========================================================
-   2. GLOBAL STATE
+   2. APPLICATION STATE
    ========================================================= */
 
-let selectedGateId = "A1";
-
+let selectedGate = "A1";
 let autoSimulation = true;
-
-let simulationTimer = null;
+let autoTimer = null;
 
 let energyHistory = [];
-
 let alertHistory = [];
 
-let lastCalculation = null;
+let demoRunning = false;
+let demoTimer = null;
 
-let demoMode = false;
+const MAX_ENERGY_HISTORY = 12;
 
 
 /* =========================================================
-   3. DOM HELPERS
+   3. HELPER FUNCTIONS
    ========================================================= */
 
-function get(id) {
+function $(id) {
   return document.getElementById(id);
 }
 
 function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
+  return Math.min(Math.max(value, min), max);
 }
 
 function randomBetween(min, max) {
@@ -88,29 +86,39 @@ function randomInt(min, max) {
   return Math.floor(randomBetween(min, max + 1));
 }
 
+function round(value, decimals = 1) {
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+}
+
+function setText(id, value) {
+  const element = $(id);
+
+  if (element) {
+    element.textContent = value;
+  }
+}
+
 
 /* =========================================================
    4. CLOCK
    ========================================================= */
 
 function updateClock() {
-
-  const clock = get("clock");
+  const clock = $("clock");
 
   if (!clock) return;
 
   const now = new Date();
 
-  clock.textContent = now.toLocaleTimeString(
-    [],
-    {
-      hour12: false
-    }
-  );
+  clock.textContent = now.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
 }
 
 setInterval(updateClock, 1000);
-
 updateClock();
 
 
@@ -120,20 +128,34 @@ updateClock();
 
 function updateSensorDisplay(data) {
 
-  get("passengers").textContent = Math.round(data.passengers);
+  setText("val-occupancy", `${Math.round(data.occupancy)} pax`);
+  setText("val-temperature", `${round(data.temperature, 1)} °C`);
+  setText("val-humidity", `${Math.round(data.humidity)} %`);
+  setText("val-light", `${Math.round(data.light)} %`);
+  setText("val-airQuality", `${Math.round(data.airQuality)}`);
+  setText("val-water", `${round(data.water, 1)} L/hr`);
 
-  get("temperature").textContent = data.temperature.toFixed(1);
+  /*
+   * Sensor meters
+   */
 
-  get("humidity").textContent = Math.round(data.humidity);
+  updateMeter("meter-occupancy", data.occupancy / 250 * 100);
+  updateMeter("meter-temperature", ((data.temperature - 18) / 17) * 100);
+  updateMeter("meter-humidity", data.humidity);
+  updateMeter("meter-light", data.light);
+  updateMeter("meter-airQuality", data.airQuality);
+  updateMeter("meter-water", (data.water / 70) * 100);
+}
 
-  get("natural-light").textContent =
-    Math.round(data.naturalLight);
+function updateMeter(id, percentage) {
 
-  get("air-quality").textContent =
-    Math.round(data.airQuality);
+  const meter = $(id);
 
-  get("water").textContent =
-    data.water.toFixed(1);
+  if (!meter) return;
+
+  const value = clamp(percentage, 0, 100);
+
+  meter.style.width = `${value}%`;
 }
 
 
@@ -143,154 +165,122 @@ function updateSensorDisplay(data) {
 
 function calculateDecisions(data) {
 
-  /*
-    Smart Lighting:
-    More natural light = less artificial lighting.
-  */
+  /* -----------------------------
+     Lighting
+     ----------------------------- */
 
-  let lighting = clamp(
-    100 - data.naturalLight,
-    15,
-    100
-  );
+  let lightingLevel;
+  let lightingReason;
 
-  let lightingDecision;
-
-  if (data.naturalLight >= 75) {
-    lightingDecision = "DIMMED";
+  if (data.light > 70) {
+    lightingLevel = 20;
+    lightingReason = "High natural daylight detected — dim artificial lighting.";
+  } else if (data.light >= 40) {
+    lightingLevel = 50;
+    lightingReason = "Moderate daylight available — maintain balanced lighting.";
+  } else {
+    lightingLevel = 100;
+    lightingReason = "Low natural light — increase artificial lighting.";
   }
-  else if (data.naturalLight >= 45) {
-    lightingDecision = "PARTIAL";
-  }
-  else {
-    lightingDecision = "HIGH";
-  }
-
-  let lightingReason =
-    `Natural light level is ${Math.round(data.naturalLight)}%.`;
-
 
   /*
-    HVAC:
-    Occupancy + temperature determine HVAC intensity.
-  */
+   * Very low occupancy limits lighting.
+   */
 
-  let hvac = 45;
-
-  if (data.passengers > 180) {
-    hvac += 20;
-  }
-  else if (data.passengers < 90) {
-    hvac -= 15;
+  if (data.occupancy < 20) {
+    lightingLevel = Math.min(lightingLevel, 40);
+    lightingReason = "Low occupancy detected — lighting capped for energy saving.";
   }
 
-  if (data.temperature > 26) {
-    hvac += 25;
-  }
-  else if (data.temperature < 21) {
-    hvac += 10;
-  }
 
-  hvac = clamp(hvac, 25, 100);
+  /* -----------------------------
+     HVAC
+     ----------------------------- */
 
-  let hvacDecision;
+  let hvacMode;
+  let hvacReason;
 
-  if (hvac >= 80) {
-    hvacDecision = "HIGH";
-  }
-  else if (hvac >= 55) {
-    hvacDecision = "MODERATE";
-  }
-  else {
-    hvacDecision = "ECO";
-  }
+  if (data.occupancy < 20) {
 
-  let hvacReason =
-    `${Math.round(data.passengers)} passengers · ${data.temperature.toFixed(1)}°C.`;
+    hvacMode = "LOW";
+    hvacReason = "Low occupancy — HVAC reduced.";
 
+  } else if (data.temperature > 28 && data.occupancy > 100) {
 
-  /*
-    Ventilation:
-    Lower air quality = stronger ventilation.
-  */
+    hvacMode = "HIGH";
+    hvacReason = "High temperature and high occupancy — HVAC increased.";
 
-  let ventilation =
-    100 - data.airQuality;
+  } else if (data.temperature > 25) {
 
-  if (data.passengers > 180) {
-    ventilation += 15;
+    hvacMode = "MEDIUM";
+    hvacReason = "Temperature above comfort range — moderate HVAC.";
+
+  } else {
+
+    hvacMode = "LOW";
+    hvacReason = "Comfortable temperature — HVAC kept low.";
   }
 
-  ventilation = clamp(
-    ventilation + 30,
-    30,
-    100
-  );
 
-  let ventilationDecision;
+  /* -----------------------------
+     Ventilation
+     ----------------------------- */
 
-  if (data.airQuality < 70) {
-    ventilationDecision = "BOOST";
-  }
-  else if (data.airQuality < 85) {
-    ventilationDecision = "MODERATE";
-  }
-  else {
-    ventilationDecision = "NORMAL";
-  }
+  let ventilationMode;
+  let ventilationReason;
 
-  let ventilationReason =
-    `Air quality score is ${Math.round(data.airQuality)}/100.`;
+  if (data.airQuality < 40) {
 
+    ventilationMode = "HIGH";
+    ventilationReason =
+      "Poor air quality detected — ventilation increased immediately.";
 
-  /*
-    Water:
-    High water usage triggers conservation.
-  */
+  } else {
 
-  let waterControl = 100;
-
-  if (data.water >= 45) {
-    waterControl = 60;
-  }
-  else if (data.water >= 35) {
-    waterControl = 80;
-  }
-  else {
-    waterControl = 100;
+    ventilationMode = "NORMAL";
+    ventilationReason =
+      "Air quality within acceptable range — normal ventilation.";
   }
 
-  let waterDecision;
 
-  if (data.water >= 45) {
-    waterDecision = "CONSERVE";
-  }
-  else if (data.water >= 35) {
-    waterDecision = "MONITOR";
-  }
-  else {
-    waterDecision = "NORMAL";
-  }
+  /* -----------------------------
+     Water
+     ----------------------------- */
 
-  let waterReason =
-    `Water usage is ${data.water.toFixed(1)} L/hr.`;
+  let waterLevel;
+  let waterReason;
+
+  if (data.water > 45) {
+
+    waterLevel = "ALERT";
+    waterReason =
+      "High water consumption detected — inspect usage and reduce wastage.";
+
+  } else if (data.water > 30) {
+
+    waterLevel = "MEDIUM";
+    waterReason =
+      "Moderate water consumption — monitor usage.";
+
+  } else {
+
+    waterLevel = "LOW";
+    waterReason =
+      "Water consumption is efficient.";
+  }
 
 
   return {
-    lighting,
-    lightingDecision,
+    lightingLevel,
     lightingReason,
 
-    hvac,
-    hvacDecision,
+    hvacMode,
     hvacReason,
 
-    ventilation,
-    ventilationDecision,
+    ventilationMode,
     ventilationReason,
 
-    waterControl,
-    waterDecision,
+    waterLevel,
     waterReason
   };
 }
@@ -300,38 +290,49 @@ function calculateDecisions(data) {
    7. ENERGY CALCULATION
    ========================================================= */
 
-function calculateEnergy(decisions, data) {
+function calculateEnergy(data, decisions) {
 
   /*
-    Prototype power model.
+   * Emergent specification:
+   *
+   * Base = 10 kW
+   * Lighting <= 6 kW
+   * HVAC = 6 / 14 / 24 kW
+   * Ventilation = 3 / 8 kW
+   */
 
-    Lighting: maximum 10 kW
-    HVAC: maximum 22 kW
-    Ventilation: maximum 5 kW
-    Other airport gate loads: 4 kW
-  */
+  const baseEnergy = 10;
 
-  const lightingPower =
-    10 * (decisions.lighting / 100);
+  const lightingEnergy =
+    (decisions.lightingLevel / 100) * 6;
 
-  const hvacPower =
-    22 * (decisions.hvac / 100);
+  let hvacEnergy = 6;
 
-  const ventilationPower =
-    5 * (decisions.ventilation / 100);
+  if (decisions.hvacMode === "MEDIUM") {
+    hvacEnergy = 14;
+  }
 
-  const occupancyPower =
-    clamp(data.passengers / 250, 0, 1) * 3;
+  if (decisions.hvacMode === "HIGH") {
+    hvacEnergy = 24;
+  }
 
-  const basePower = 4;
+  let ventilationEnergy = 3;
 
-  return (
-    lightingPower +
-    hvacPower +
-    ventilationPower +
-    occupancyPower +
-    basePower
-  );
+  if (decisions.ventilationMode === "HIGH") {
+    ventilationEnergy = 8;
+  }
+
+  const occupancyEnergy =
+    clamp(data.occupancy / 250, 0, 1) * 3;
+
+  const total =
+    baseEnergy +
+    lightingEnergy +
+    hvacEnergy +
+    ventilationEnergy +
+    occupancyEnergy;
+
+  return round(total, 1);
 }
 
 
@@ -342,520 +343,697 @@ function calculateEnergy(decisions, data) {
 function calculateEcoScore(data, decisions, energy) {
 
   /*
-    Energy score:
-    Lower consumption = better.
-  */
+   * Emergent specification:
+   *
+   * Energy      = 25%
+   * Lighting    = 15%
+   * Water       = 15%
+   * Air         = 20%
+   * Comfort     = 25%
+   */
 
-  const energyScore =
-    clamp(
-      100 - ((energy - 15) / 25) * 100,
-      20,
-      100
-    );
+  /* Energy score */
 
-
-  /*
-    Lighting score:
-    Lower artificial lighting is better.
-  */
-
-  const lightingScore =
-    clamp(
-      100 - decisions.lighting * 0.65,
-      30,
-      100
-    );
-
-
-  /*
-    Water score.
-  */
-
-  const waterScore =
-    clamp(
-      100 - ((data.water - 15) / 40) * 100,
-      20,
-      100
-    );
-
-
-  /*
-    Air quality score.
-  */
-
-  const airScore =
-    clamp(
-      data.airQuality,
-      0,
-      100
-    );
-
-
-  /*
-    Passenger comfort.
-  */
-
-  let comfortScore = 100;
-
-  if (data.temperature < 21) {
-    comfortScore -= (21 - data.temperature) * 10;
-  }
-
-  if (data.temperature > 26) {
-    comfortScore -= (data.temperature - 26) * 10;
-  }
-
-  if (data.humidity < 40) {
-    comfortScore -= (40 - data.humidity) * 2;
-  }
-
-  if (data.humidity > 60) {
-    comfortScore -= (data.humidity - 60) * 2;
-  }
-
-  comfortScore =
-    clamp(comfortScore, 20, 100);
-
-
-  /*
-    Weighted Eco Score.
-  */
-
-  const score = Math.round(
-    energyScore * 0.25 +
-    lightingScore * 0.20 +
-    waterScore * 0.15 +
-    airScore * 0.20 +
-    comfortScore * 0.20
+  const energyScore = clamp(
+    100 - ((energy - 10) / 45) * 100,
+    0,
+    100
   );
 
 
+  /* Lighting score */
+
+  let lightingScore;
+
+  if (data.light > 70) {
+    lightingScore = 100 - Math.abs(decisions.lightingLevel - 20);
+  } else if (data.light >= 40) {
+    lightingScore = 85 - Math.abs(decisions.lightingLevel - 50);
+  } else {
+    lightingScore = 70;
+  }
+
+  lightingScore = clamp(lightingScore, 0, 100);
+
+
+  /* Water score */
+
+  const waterScore = clamp(
+    100 - ((data.water - 5) / 65) * 100,
+    0,
+    100
+  );
+
+
+  /* Air score */
+
+  const airScore = clamp(data.airQuality, 0, 100);
+
+
+  /* Comfort score */
+
+  let temperatureComfort =
+    100 - Math.abs(data.temperature - 24) * 12;
+
+  temperatureComfort = clamp(
+    temperatureComfort,
+    0,
+    100
+  );
+
+  let humidityComfort =
+    100 - Math.abs(data.humidity - 50) * 1.8;
+
+  humidityComfort = clamp(
+    humidityComfort,
+    0,
+    100
+  );
+
+  const comfortScore =
+    (temperatureComfort + humidityComfort) / 2;
+
+
+  /* Weighted Eco Score */
+
+  const score =
+    energyScore * 0.25 +
+    lightingScore * 0.15 +
+    waterScore * 0.15 +
+    airScore * 0.20 +
+    comfortScore * 0.25;
+
   return {
-    score,
-    energyScore: Math.round(energyScore),
-    lightingScore: Math.round(lightingScore),
-    waterScore: Math.round(waterScore),
-    airScore: Math.round(airScore),
-    comfortScore: Math.round(comfortScore)
+    total: Math.round(clamp(score, 0, 100)),
+    energy: Math.round(energyScore),
+    lighting: Math.round(lightingScore),
+    water: Math.round(waterScore),
+    air: Math.round(airScore),
+    comfort: Math.round(comfortScore)
   };
 }
 
 
 /* =========================================================
-   9. SCORE LABEL
-   ========================================================= */
-
-function getScoreLabel(score) {
-
-  if (score >= 85) {
-    return "Excellent Sustainability";
-  }
-
-  if (score >= 75) {
-    return "Efficient";
-  }
-
-  if (score >= 50) {
-    return "Moderate";
-  }
-
-  return "High Consumption";
-}
-
-
-/* =========================================================
-   10. UPDATE ECO SCORE
+   9. UPDATE ECO SCORE UI
    ========================================================= */
 
 function updateEcoScore(scoreData) {
 
-  get("eco-score").textContent =
-    scoreData.score;
+  setText("eco-score", scoreData.total);
+  setText("factor-energy", `${scoreData.energy}%`);
+  setText("factor-lighting", `${scoreData.lighting}%`);
+  setText("factor-water", `${scoreData.water}%`);
+  setText("factor-air", `${scoreData.air}%`);
+  setText("factor-comfort", `${scoreData.comfort}%`);
 
-  get("score-label").textContent =
-    getScoreLabel(scoreData.score);
+  /*
+   * Support possible ring SVG implementation.
+   */
 
-  get("energy-score").textContent =
-    scoreData.energyScore;
+  const ring = $("eco-ring");
 
-  get("lighting-score").textContent =
-    scoreData.lightingScore;
+  if (ring) {
 
-  get("water-score").textContent =
-    scoreData.waterScore;
+    const circumference = 2 * Math.PI * 52;
 
-  get("air-score").textContent =
-    scoreData.airScore;
+    ring.style.strokeDasharray = circumference;
 
-  get("comfort-score").textContent =
-    scoreData.comfortScore;
+    const offset =
+      circumference -
+      (scoreData.total / 100) * circumference;
+
+    ring.style.strokeDashoffset = offset;
+  }
 }
 
 
 /* =========================================================
-   11. UPDATE DECISION ENGINE
+   10. DECISION ENGINE UI
    ========================================================= */
 
 function updateDecisionEngine(decisions) {
 
-  get("lighting-decision").textContent =
-    decisions.lightingDecision;
+  setText(
+    "lighting-reason",
+    decisions.lightingReason
+  );
 
-  get("lighting-percent").textContent =
-    Math.round(decisions.lighting);
+  setText(
+    "lighting-level",
+    `${decisions.lightingLevel}%`
+  );
 
-  get("lighting-reason").textContent =
-    decisions.lightingReason;
-
-
-  get("hvac-decision").textContent =
-    decisions.hvacDecision;
-
-  get("hvac-percent").textContent =
-    Math.round(decisions.hvac) + "%";
-
-  get("hvac-reason").textContent =
-    decisions.hvacReason;
-
-
-  get("ventilation-decision").textContent =
-    decisions.ventilationDecision;
-
-  get("ventilation-percent").textContent =
-    Math.round(decisions.ventilation) + "%";
-
-  get("ventilation-reason").textContent =
-    decisions.ventilationReason;
+  setText(
+    "lighting-state",
+    decisions.lightingLevel <= 40
+      ? "DIM"
+      : decisions.lightingLevel <= 70
+        ? "BALANCED"
+        : "FULL"
+  );
 
 
-  get("water-decision").textContent =
-    decisions.waterDecision;
+  setText(
+    "hvac-reason",
+    decisions.hvacReason
+  );
 
-  get("water-percent").textContent =
-    Math.round(decisions.waterControl) + "%";
+  setText(
+    "hvac-mode",
+    decisions.hvacMode
+  );
 
-  get("water-reason").textContent =
-    decisions.waterReason;
+  setText(
+    "hvac-status",
+    decisions.hvacMode === "HIGH"
+      ? "HIGH LOAD"
+      : decisions.hvacMode === "MEDIUM"
+        ? "ACTIVE"
+        : "LOW"
+  );
+
+
+  setText(
+    "vent-reason",
+    decisions.ventilationReason
+  );
+
+  setText(
+    "vent-mode",
+    decisions.ventilationMode
+  );
+
+  setText(
+    "vent-status",
+    decisions.ventilationMode === "HIGH"
+      ? "BOOST"
+      : "NORMAL"
+  );
+
+
+  setText(
+    "water-reason",
+    decisions.waterReason
+  );
+
+  setText(
+    "water-level",
+    decisions.waterLevel
+  );
+
+  setText(
+    "water-status",
+    decisions.water > 45
+      ? "CHECK REQUIRED"
+      : "MONITORING"
+  );
 }
 
 
 /* =========================================================
-   12. UPDATE ACTUATORS
+   11. ACTUATOR UI
    ========================================================= */
 
 function updateActuators(decisions) {
 
-  get("actuator-light").textContent =
-    "ACTIVE";
+  /* Lighting */
 
-  get("actuator-light-percent").textContent =
-    Math.round(decisions.lighting) + "%";
+  setText(
+    "act-lighting-value",
+    `${decisions.lightingLevel}%`
+  );
 
-  get("actuator-light-state").textContent =
-    "Virtual smart lighting actuator";
+  setText(
+    "act-lighting-chip",
+    decisions.lightingLevel <= 40
+      ? "ENERGY SAVING"
+      : decisions.lightingLevel <= 70
+        ? "BALANCED"
+        : "FULL POWER"
+  );
 
-
-  get("actuator-hvac").textContent =
-    "ACTIVE";
-
-  get("actuator-hvac-percent").textContent =
-    Math.round(decisions.hvac) + "%";
-
-  get("actuator-hvac-state").textContent =
-    "Virtual HVAC controller";
-
-
-  get("actuator-ventilation").textContent =
-    "ACTIVE";
-
-  get("actuator-ventilation-percent").textContent =
-    Math.round(decisions.ventilation) + "%";
-
-  get("actuator-ventilation-state").textContent =
-    "Virtual ventilation actuator";
+  updateBar(
+    "act-lighting-bar",
+    decisions.lightingLevel
+  );
 
 
-  get("actuator-water").textContent =
-    decisions.waterDecision;
+  /* HVAC */
 
-  get("actuator-water-percent").textContent =
-    Math.round(decisions.waterControl) + "%";
+  let hvacPercent = 25;
 
-  get("actuator-water-state").textContent =
-    "Virtual smart water valve";
+  if (decisions.hvacMode === "MEDIUM") {
+    hvacPercent = 58;
+  }
+
+  if (decisions.hvacMode === "HIGH") {
+    hvacPercent = 92;
+  }
+
+  setText(
+    "act-hvac-value",
+    `${hvacPercent}%`
+  );
+
+  setText(
+    "act-hvac-chip",
+    decisions.hvacMode
+  );
+
+  updateBar(
+    "act-hvac-bar",
+    hvacPercent
+  );
+
+
+  /* Ventilation */
+
+  const ventilationPercent =
+    decisions.ventilationMode === "HIGH"
+      ? 90
+      : 45;
+
+  setText(
+    "act-ventilation-value",
+    `${ventilationPercent}%`
+  );
+
+  setText(
+    "act-ventilation-chip",
+    decisions.ventilationMode
+  );
+
+  updateBar(
+    "act-ventilation-bar",
+    ventilationPercent
+  );
+
+
+  /* Water */
+
+  const waterPercent =
+    decisions.waterLevel === "ALERT"
+      ? 90
+      : decisions.waterLevel === "MEDIUM"
+        ? 60
+        : 25;
+
+  setText(
+    "act-water-value",
+    `${waterPercent}%`
+  );
+
+  setText(
+    "act-water-chip",
+    decisions.waterLevel
+  );
+
+  updateBar(
+    "act-water-bar",
+    waterPercent
+  );
+}
+
+
+function updateBar(id, percentage) {
+
+  const element = $(id);
+
+  if (!element) return;
+
+  element.style.width =
+    `${clamp(percentage, 0, 100)}%`;
 }
 
 
 /* =========================================================
-   13. RECOMMENDATIONS
+   12. RECOMMENDATIONS
    ========================================================= */
 
-function updateRecommendations(data, decisions, scoreData) {
+function updateRecommendations(
+  data,
+  decisions,
+  scoreData
+) {
 
-  const list = get("recommendations-list");
+  const list = $("rec-list");
+
+  if (!list) return;
 
   const recommendations = [];
 
 
-  if (data.naturalLight > 70) {
+  if (data.light > 70) {
+
     recommendations.push(
-      "High natural light detected — reduce artificial lighting to save energy."
+      "☀️ Reduce artificial lighting because natural daylight is sufficient."
     );
   }
 
-  if (data.passengers > 180) {
+  if (data.light < 40) {
+
     recommendations.push(
-      "High passenger occupancy — maintain stronger HVAC and ventilation."
+      "💡 Increase artificial lighting to maintain passenger visibility."
     );
   }
 
-  if (data.temperature > 26) {
+
+  if (data.temperature > 28) {
+
     recommendations.push(
-      "Temperature is above the comfort band — increase HVAC intensity."
+      "❄️ Increase HVAC cooling because the gate temperature is high."
     );
   }
 
-  if (data.airQuality < 75) {
+
+  if (data.airQuality < 40) {
+
     recommendations.push(
-      "Air quality is reduced — activate enhanced ventilation."
+      "🌬️ Increase ventilation immediately due to poor air quality."
     );
   }
 
-  if (data.water >= 45) {
+
+  if (data.water > 45) {
+
     recommendations.push(
-      "Water usage is high — activate conservation mode."
+      "💧 Investigate high water consumption and check for wastage."
     );
   }
 
-  if (scoreData.score >= 80) {
+
+  if (data.occupancy > 180) {
+
     recommendations.push(
-      "Gate is operating efficiently. Continue current EcoGate settings."
+      "👥 High passenger occupancy detected — optimize HVAC and ventilation."
     );
   }
+
+
+  if (scoreData.total >= 80) {
+
+    recommendations.push(
+      "🌱 Gate is operating efficiently. Maintain current sustainability settings."
+    );
+  }
+
 
   if (recommendations.length === 0) {
+
     recommendations.push(
-      "All monitored parameters are within normal operating ranges."
+      "✅ Gate conditions are stable. Continue monitoring IoT sensor data."
     );
   }
 
-  list.innerHTML = "";
 
-  recommendations.slice(0, 5).forEach(function (text) {
-
-    const item =
-      document.createElement("div");
-
-    item.className =
-      "recommendation";
-
-    item.textContent =
-      text;
-
-    list.appendChild(item);
-  });
+  list.innerHTML = recommendations
+    .map(item => `<li>${item}</li>`)
+    .join("");
 }
 
 
 /* =========================================================
-   14. UPDATE GATE STATUS
+   13. GATE STATUS
    ========================================================= */
 
 function updateGateStatus(gateId, score) {
 
-  const el =
-    get("status-" + gateId);
+  const status = $(`gate-status-${gateId}`);
 
-  if (!el) return;
+  if (!status) return;
 
   if (score >= 75) {
 
-    el.textContent =
-      "🟢 Efficient";
+    status.textContent = "Efficient";
+    status.className = "gate-status good";
 
-    el.className =
-      "gate-status gate-ok";
+  } else if (score >= 50) {
 
-  }
-  else if (score >= 50) {
+    status.textContent = "Moderate";
+    status.className = "gate-status medium";
 
-    el.textContent =
-      "🟡 Moderate";
+  } else {
 
-    el.className =
-      "gate-status gate-mid";
-
-  }
-  else {
-
-    el.textContent =
-      "🔴 High Consumption";
-
-    el.className =
-      "gate-status gate-bad";
-  }
-
-
-  /* Keep the All Gates Eco Score chart in sync */
-
-  const scoreElement =
-    get("gc-score-" + gateId);
-
-  const chartFill =
-    get("gc-fill-" + gateId);
-
-  if (scoreElement) {
-    scoreElement.textContent =
-      String(score);
-  }
-
-  if (chartFill) {
-
-    chartFill.style.height =
-      score + "%";
-
-    chartFill.className =
-      "gate-chart-fill " +
-      (
-        score >= 75
-          ? "fill-ok"
-          : score >= 50
-            ? "fill-mid"
-            : "fill-bad"
-      );
+    status.textContent = "High Consumption";
+    status.className = "gate-status bad";
   }
 }
 
 
 /* =========================================================
-   15. UPDATE ALL GATE SCORES
+   14. GATE MAP SELECTION
    ========================================================= */
 
-function updateAllGateScores() {
+function updateGateSelection() {
 
-  Object.keys(gateData).forEach(function (gateId) {
+  ["A1", "A2", "A3", "A4"].forEach(gate => {
 
-    const data =
-      gateData[gateId];
+    const button = $(`gate-btn-${gate}`);
 
-    const decisions =
-      calculateDecisions(data);
+    if (!button) return;
 
-    const energy =
-      calculateEnergy(decisions, data);
+    if (gate === selectedGate) {
 
-    const scoreData =
-      calculateEcoScore(
-        data,
-        decisions,
-        energy
-      );
+      button.classList.add("active");
+
+    } else {
+
+      button.classList.remove("active");
+    }
+  });
+}
+
+
+function selectGate(gateId) {
+
+  if (!gateData[gateId]) return;
+
+  selectedGate = gateId;
+
+  updateGateSelection();
+
+  updateDashboard();
+}
+
+
+/* =========================================================
+   15. GATE SCORE CALCULATION
+   ========================================================= */
+
+function calculateGateScore(gateId) {
+
+  const data = gateData[gateId];
+
+  if (!data) return 0;
+
+  const decisions = calculateDecisions(data);
+
+  const energy =
+    calculateEnergy(data, decisions);
+
+  return calculateEcoScore(
+    data,
+    decisions,
+    energy
+  ).total;
+}
+
+
+/* =========================================================
+   16. GATE COMPARISON
+   ========================================================= */
+
+function updateGateComparison() {
+
+  ["A1", "A2", "A3", "A4"].forEach(gateId => {
+
+    const score =
+      calculateGateScore(gateId);
 
     updateGateStatus(
       gateId,
-      scoreData.score
+      score
     );
+
+    /*
+     * Support gate chart if present.
+     */
+
+    const scoreElement =
+      $(`gate-score-${gateId}`);
+
+    if (scoreElement) {
+      scoreElement.textContent = score;
+    }
+
+    const fillElement =
+      $(`gate-fill-${gateId}`);
+
+    if (fillElement) {
+      fillElement.style.width = `${score}%`;
+    }
   });
 }
 
 
 /* =========================================================
-   16. ENERGY HISTORY
+   17. ENERGY HISTORY
+   ========================================================= */
+
+function addEnergyHistory(value) {
+
+  energyHistory.push({
+    time: new Date(),
+    value
+  });
+
+  if (
+    energyHistory.length >
+    MAX_ENERGY_HISTORY
+  ) {
+
+    energyHistory.shift();
+  }
+}
+
+
+/* =========================================================
+   18. ENERGY CHART
    ========================================================= */
 
 function updateEnergyChart() {
 
-  const chart =
-    get("energy-chart");
+  const chart = $("energy-chart");
 
   if (!chart) return;
 
-  chart.innerHTML = "";
+  if (energyHistory.length === 0) return;
 
-  if (energyHistory.length === 0) {
+  const maxEnergy = Math.max(
+    ...energyHistory.map(item => item.value),
+    1
+  );
 
-    chart.innerHTML =
-      '<div class="chart-empty">Waiting for readings...</div>';
+  chart.innerHTML =
+    energyHistory
+      .map(item => {
 
-    return;
-  }
+        const height =
+          clamp(
+            (item.value / maxEnergy) * 100,
+            5,
+            100
+          );
 
+        return `
+          <div
+            class="energy-bar"
+            style="height:${height}%"
+            title="${item.value} kW"
+          ></div>
+        `;
 
-  const max =
-    Math.max(
-      40,
-      ...energyHistory
-    );
-
-
-  energyHistory.forEach(function (value) {
-
-    const bar =
-      document.createElement("div");
-
-    bar.className =
-      "energy-bar";
-
-    bar.style.height =
-      ((value / max) * 100) + "%";
-
-    bar.title =
-      value.toFixed(1) + " kW";
-
-    chart.appendChild(bar);
-  });
+      })
+      .join("");
 }
 
 
 /* =========================================================
-   17. ANALYTICS
+   19. ANALYTICS
    ========================================================= */
 
 function updateAnalytics(
   energy,
-  decisions
+  data
 ) {
 
-  get("current-energy").textContent =
-    energy.toFixed(1);
-
-  const dailyEnergy =
-    energy * 12;
-
-  get("daily-energy").textContent =
-    dailyEnergy.toFixed(1);
+  setText(
+    "stat-current",
+    `${energy} kW`
+  );
 
 
   /*
-    Conventional baseline.
-  */
+   * Estimated daily energy.
+   */
 
-  const conventionalEnergy =
-    41;
+  const dailyEnergy =
+    round(energy * 12, 0);
+
+  setText(
+    "stat-daily",
+    `${dailyEnergy} kWh`
+  );
+
+
+  /*
+   * Estimated savings compared
+   * with inefficient operation.
+   */
+
+  const baseline = 58;
 
   const saved =
     Math.max(
       0,
-      (conventionalEnergy - energy) * 12
+      ((baseline - energy) / baseline) * 100
     );
 
-  get("energy-saved").textContent =
-    saved.toFixed(1);
+  setText(
+    "stat-saved",
+    `${Math.round(saved)}%`
+  );
 
 
-  get("compare-lighting").textContent =
-    Math.round(decisions.lighting) + "%";
+  /*
+   * Before / After comparison.
+   */
 
-  get("compare-hvac").textContent =
-    Math.round(decisions.hvac) + "%";
+  const lightingBefore = 100;
+
+  const lightingAfter =
+    data.light > 70
+      ? 20
+      : data.light >= 40
+        ? 50
+        : 100;
+
+  setText(
+    "compare-lighting",
+    `${lightingBefore}% → ${lightingAfter}%`
+  );
+
+
+  let hvacBefore = 100;
+
+  if (data.temperature <= 25) {
+    hvacBefore = 55;
+  }
+
+  let hvacAfter = 25;
+
+  if (data.temperature > 28 && data.occupancy > 100) {
+    hvacAfter = 92;
+  } else if (data.temperature > 25) {
+    hvacAfter = 58;
+  }
+
+  setText(
+    "compare-hvac",
+    `${hvacBefore}% → ${hvacAfter}%`
+  );
+
+
+  updateEnergyChart();
 }
 
 
 /* =========================================================
-   18. ALERTS
+   20. ALERT SYSTEM
    ========================================================= */
 
-function createAlerts(data) {
+function generateAlerts(data) {
 
   const alerts = [];
 
@@ -863,74 +1041,39 @@ function createAlerts(data) {
   if (data.temperature > 28) {
 
     alerts.push({
-      type: "critical",
-      icon: "🔴",
-      text:
-        "Temperature is critically high."
+      type: "warning",
+      message:
+        `High temperature at ${selectedGate}: ${round(data.temperature, 1)}°C`
     });
-
   }
-  else if (data.temperature > 26) {
+
+
+  if (data.airQuality < 40) {
+
+    alerts.push({
+      type: "danger",
+      message:
+        `Poor air quality at ${selectedGate}: ${Math.round(data.airQuality)}`
+    });
+  }
+
+
+  if (data.water > 45) {
 
     alerts.push({
       type: "warning",
-      icon: "🟡",
-      text:
-        "Temperature is above the comfort band."
+      message:
+        `High water usage at ${selectedGate}: ${round(data.water, 1)} L/hr`
     });
   }
 
 
-  if (data.airQuality < 70) {
-
-    alerts.push({
-      type: "critical",
-      icon: "🔴",
-      text:
-        "Poor air quality detected. Ventilation increased."
-    });
-
-  }
-  else if (data.airQuality < 85) {
+  if (data.occupancy > 180) {
 
     alerts.push({
       type: "warning",
-      icon: "🟡",
-      text:
-        "Air quality is below the preferred level."
-    });
-  }
-
-
-  if (data.water >= 45) {
-
-    alerts.push({
-      type: "warning",
-      icon: "🟡",
-      text:
-        "High water consumption detected."
-    });
-  }
-
-
-  if (data.passengers > 210) {
-
-    alerts.push({
-      type: "warning",
-      icon: "🟡",
-      text:
-        "Gate occupancy is approaching capacity."
-    });
-  }
-
-
-  if (alerts.length === 0) {
-
-    alerts.push({
-      type: "normal",
-      icon: "🟢",
-      text:
-        "All monitored parameters are within normal limits."
+      message:
+        `High passenger occupancy at ${selectedGate}: ${Math.round(data.occupancy)}`
     });
   }
 
@@ -940,88 +1083,512 @@ function createAlerts(data) {
 
 
 /* =========================================================
-   19. UPDATE ALERT PANEL
+   21. ALERT UI
    ========================================================= */
 
 function updateAlerts(data) {
 
-  const stream =
-    get("alert-stream");
+  const list = $("alert-list");
 
-  if (!stream) return;
+  if (!list) return;
 
   const alerts =
-    createAlerts(data);
+    generateAlerts(data);
 
-  alertHistory =
-    alerts.concat(alertHistory)
-      .slice(0, 8);
+  if (alerts.length === 0) {
 
-  stream.innerHTML = "";
+    list.innerHTML = `
+      <div class="alert-item success">
+        <span>✓</span>
+        <div>
+          <strong>All systems normal</strong>
+          <p>No critical sustainability alerts detected.</p>
+        </div>
+      </div>
+    `;
 
-  alertHistory
-    .slice(0, 6)
-    .forEach(function (alert) {
+    return;
+  }
 
-      const item =
-        document.createElement("div");
 
-      item.className =
-        "alert-item alert-" +
-        alert.type;
+  list.innerHTML =
+    alerts
+      .map(alert => `
+        <div class="alert-item ${alert.type}">
+          <span>⚠</span>
+          <div>
+            <strong>${alert.type === "danger" ? "Critical Alert" : "Warning"}</strong>
+            <p>${alert.message}</p>
+          </div>
+        </div>
+      `)
+      .join("");
+}
 
-      const icon =
-        document.createElement("span");
 
-      icon.textContent =
-        alert.icon;
+/* =========================================================
+   22. SIMULATE SENSOR CHANGE
+   ========================================================= */
 
-      const text =
-        document.createElement("span");
+function simulateSensorChange() {
 
-      text.textContent =
-        alert.text;
+  const data =
+    gateData[selectedGate];
 
-      item.appendChild(icon);
-      item.appendChild(text);
+  data.occupancy =
+    randomInt(5, 230);
 
-      stream.appendChild(item);
+  data.temperature =
+    round(randomBetween(20, 32), 1);
+
+  data.humidity =
+    randomInt(35, 75);
+
+  data.light =
+    randomInt(10, 95);
+
+  data.airQuality =
+    randomInt(25, 98);
+
+  data.water =
+    round(randomBetween(8, 60), 1);
+
+
+  updateDashboard();
+}
+
+
+/* =========================================================
+   23. AUTO SIMULATION
+   ========================================================= */
+
+function startAutoSimulation() {
+
+  stopAutoSimulation();
+
+  autoTimer =
+    setInterval(() => {
+
+      if (!demoRunning) {
+        simulateSensorChange();
+      }
+
+    }, 4000);
+}
+
+
+function stopAutoSimulation() {
+
+  if (autoTimer) {
+
+    clearInterval(autoTimer);
+
+    autoTimer = null;
+  }
+}
+
+
+/* =========================================================
+   24. AUTO BUTTON
+   ========================================================= */
+
+function updateAutoButton() {
+
+  const button = $("btn-auto");
+
+  if (!button) return;
+
+  if (autoSimulation) {
+
+    button.textContent =
+      "⏸ Auto Simulation: ON";
+
+    button.classList.add("active");
+
+  } else {
+
+    button.textContent =
+      "▶ Auto Simulation: OFF";
+
+    button.classList.remove("active");
+  }
+}
+
+
+function toggleAutoSimulation() {
+
+  autoSimulation =
+    !autoSimulation;
+
+  updateAutoButton();
+
+  if (autoSimulation) {
+
+    startAutoSimulation();
+
+  } else {
+
+    stopAutoSimulation();
+  }
+}
+
+
+/* =========================================================
+   25. DEMO SCENARIO
+   ========================================================= */
+
+function runDemoScenario() {
+
+  if (demoRunning) return;
+
+  demoRunning = true;
+
+  stopAutoSimulation();
+
+  const button = $("btn-demo");
+
+  if (button) {
+    button.disabled = true;
+    button.textContent =
+      "▶ Demo Running...";
+  }
+
+
+  const data =
+    gateData.A1;
+
+
+  /*
+   * Demo starts with a quiet,
+   * efficient morning.
+   */
+
+  const steps = [
+
+    {
+      delay: 0,
+      occupancy: 40,
+      temperature: 24,
+      light: 80,
+      airQuality: 85,
+      humidity: 45,
+      water: 18
+    },
+
+    {
+      delay: 3200,
+      occupancy: 80,
+      temperature: 26,
+      light: 60,
+      airQuality: 72,
+      humidity: 50,
+      water: 25
+    },
+
+    {
+      delay: 6400,
+      occupancy: 130,
+      temperature: 28,
+      light: 40,
+      airQuality: 55,
+      humidity: 57,
+      water: 32
+    },
+
+    {
+      delay: 9600,
+      occupancy: 180,
+      temperature: 30,
+      light: 20,
+      airQuality: 32,
+      humidity: 63,
+      water: 52
+    },
+
+    {
+      delay: 12800,
+      occupancy: 40,
+      temperature: 24,
+      light: 80,
+      airQuality: 85,
+      humidity: 45,
+      water: 18
+    }
+  ];
+
+
+  steps.forEach(step => {
+
+    setTimeout(() => {
+
+      data.occupancy =
+        step.occupancy;
+
+      data.temperature =
+        step.temperature;
+
+      data.light =
+        step.light;
+
+      data.airQuality =
+        step.airQuality;
+
+      data.humidity =
+        step.humidity;
+
+      data.water =
+        step.water;
+
+      updateDashboard();
+
+    }, step.delay);
+  });
+
+
+  demoTimer =
+    setTimeout(() => {
+
+      demoRunning = false;
+
+      if (button) {
+
+        button.disabled = false;
+
+        button.textContent =
+          "▶ Demo Scenario";
+      }
+
+
+      if (autoSimulation) {
+        startAutoSimulation();
+      }
+
+    }, 15000);
+}
+
+
+/* =========================================================
+   26. CSV EXPORT
+   ========================================================= */
+
+function exportCSV() {
+
+  const rows = [
+    [
+      "Gate",
+      "Occupancy",
+      "Temperature",
+      "Humidity",
+      "Natural Light",
+      "Air Quality",
+      "Water Usage"
+    ]
+  ];
+
+
+  Object.keys(gateData).forEach(gate => {
+
+    const data =
+      gateData[gate];
+
+    rows.push([
+      gate,
+      data.occupancy,
+      data.temperature,
+      data.humidity,
+      data.light,
+      data.airQuality,
+      data.water
+    ]);
+  });
+
+
+  const csv =
+    rows
+      .map(row =>
+        row.join(",")
+      )
+      .join("\n");
+
+
+  const blob =
+    new Blob(
+      [csv],
+      { type: "text/csv;charset=utf-8;" }
+    );
+
+
+  const url =
+    URL.createObjectURL(blob);
+
+
+  const link =
+    document.createElement("a");
+
+  link.href = url;
+
+  link.download =
+    "ecogate-sensor-data.csv";
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
+}
+
+
+/* =========================================================
+   27. NAVIGATION
+   ========================================================= */
+
+function setupNavigation() {
+
+  document
+    .querySelectorAll("[data-section]")
+    .forEach(link => {
+
+      link.addEventListener(
+        "click",
+        event => {
+
+          event.preventDefault();
+
+          const target =
+            link.getAttribute("data-section");
+
+          const section =
+            $(target);
+
+          if (section) {
+
+            section.scrollIntoView({
+              behavior: "smooth",
+              block: "start"
+            });
+          }
+        }
+      );
     });
 }
 
 
 /* =========================================================
-   20. MAIN DASHBOARD UPDATE
+   28. BUTTON EVENT LISTENERS
+   ========================================================= */
+
+function setupControls() {
+
+  const simulateButton =
+    $("btn-simulate");
+
+  if (simulateButton) {
+
+    simulateButton.addEventListener(
+      "click",
+      simulateSensorChange
+    );
+  }
+
+
+  const autoButton =
+    $("btn-auto");
+
+  if (autoButton) {
+
+    autoButton.addEventListener(
+      "click",
+      toggleAutoSimulation
+    );
+  }
+
+
+  const demoButton =
+    $("btn-demo");
+
+  if (demoButton) {
+
+    demoButton.addEventListener(
+      "click",
+      runDemoScenario
+    );
+  }
+
+
+  const exportButton =
+    $("btn-export");
+
+  if (exportButton) {
+
+    exportButton.addEventListener(
+      "click",
+      exportCSV
+    );
+  }
+
+
+  /*
+   * Gate buttons
+   */
+
+  ["A1", "A2", "A3", "A4"]
+    .forEach(gate => {
+
+      const button =
+        $(`gate-btn-${gate}`);
+
+      if (button) {
+
+        button.addEventListener(
+          "click",
+          () => selectGate(gate)
+        );
+      }
+    });
+}
+
+
+/* =========================================================
+   29. MAIN DASHBOARD UPDATE
    ========================================================= */
 
 function updateDashboard() {
 
   const data =
-    gateData[selectedGateId];
+    gateData[selectedGate];
 
 
   /*
-    Calculate decision engine.
-  */
+   * Sensor values
+   */
+
+  updateSensorDisplay(data);
+
+
+  /*
+   * Decision engine
+   */
 
   const decisions =
     calculateDecisions(data);
 
 
   /*
-    Calculate energy.
-  */
+   * Energy
+   */
 
   const energy =
     calculateEnergy(
-      decisions,
-      data
+      data,
+      decisions
     );
 
 
   /*
-    Calculate Eco Score.
-  */
+   * Eco score
+   */
 
   const scoreData =
     calculateEcoScore(
@@ -1032,29 +1599,8 @@ function updateDashboard() {
 
 
   /*
-    Save last calculation.
-  */
-
-  lastCalculation = {
-    gate: selectedGateId,
-    data,
-    decisions,
-    energy,
-    scoreData
-  };
-
-
-  /*
-    Update UI.
-  */
-
-  updateSensorDisplay(data);
-
-  get("energy").textContent =
-    energy.toFixed(1);
-
-  get("current-gate").textContent =
-    selectedGateId;
+   * Update UI
+   */
 
   updateEcoScore(scoreData);
 
@@ -1068,728 +1614,122 @@ function updateDashboard() {
     scoreData
   );
 
-  updateAnalytics(
-    energy,
-    decisions
-  );
-
   updateAlerts(data);
 
-
-  /*
-    Add energy reading.
-  */
-
-  energyHistory.push(energy);
-
-  if (energyHistory.length > 12) {
-    energyHistory.shift();
-  }
-
-  updateEnergyChart();
+  updateAnalytics(
+    energy,
+    data
+  );
 
 
   /*
-    Update all gate comparison scores.
-  */
+   * Energy history
+   */
 
-  updateAllGateScores();
-}
-
-
-/* =========================================================
-   21. SIMULATE SENSOR CHANGE
-   ========================================================= */
-
-function simulateSensorChange() {
-
-  const data =
-    gateData[selectedGateId];
-
-
-  data.passengers =
-    clamp(
-      data.passengers +
-      randomInt(-25, 25),
-      10,
-      250
-    );
-
-
-  data.temperature =
-    clamp(
-      data.temperature +
-      randomBetween(-1.4, 1.4),
-      18,
-      32
-    );
-
-
-  data.humidity =
-    clamp(
-      data.humidity +
-      randomBetween(-5, 5),
-      25,
-      75
-    );
-
-
-  data.naturalLight =
-    clamp(
-      data.naturalLight +
-      randomInt(-12, 12),
-      5,
-      100
-    );
-
-
-  data.airQuality =
-    clamp(
-      data.airQuality +
-      randomInt(-8, 8),
-      45,
-      100
-    );
-
-
-  data.water =
-    clamp(
-      data.water +
-      randomBetween(-5, 5),
-      10,
-      60
-    );
-
-
-  updateDashboard();
-}
-
-
-/* =========================================================
-   22. GATE SELECTION
-   ========================================================= */
-
-function selectGate(gateId) {
-
-  if (!gateData[gateId]) return;
-
-  selectedGateId =
-    gateId;
-
-
-  document
-    .querySelectorAll(".gate-btn")
-    .forEach(function (btn) {
-
-      btn.classList.toggle(
-        "is-selected",
-        btn.dataset.gate === gateId
-      );
-    });
-
-
-  document
-    .querySelectorAll(".gate-chart-col")
-    .forEach(function (btn) {
-
-      btn.classList.toggle(
-        "is-selected",
-        btn.dataset.gate === gateId
-      );
-    });
+  addEnergyHistory(energy);
 
 
   /*
-    Clear recent energy history when
-    switching gates.
-  */
+   * Update comparison
+   */
 
-  energyHistory = [];
+  updateGateComparison();
 
-  alertHistory = [];
-
-  updateDashboard();
-
-  window.location.hash = "sensors";
-}
-
-
-/* =========================================================
-   23. GATE BUTTON EVENTS
-   ========================================================= */
-
-document
-  .querySelectorAll(".gate-btn")
-  .forEach(function (button) {
-
-    button.addEventListener(
-      "click",
-      function () {
-
-        selectGate(
-          button.dataset.gate
-        );
-
-      }
-    );
-  });
-
-
-document
-  .querySelectorAll(".gate-chart-col")
-  .forEach(function (button) {
-
-    button.addEventListener(
-      "click",
-      function () {
-
-        selectGate(
-          button.dataset.gate
-        );
-
-      }
-    );
-  });
-
-
-/* =========================================================
-   24. AUTO SIMULATION
-   ========================================================= */
-
-function startAutoSimulation() {
-
-  stopAutoSimulation();
-
-  if (!autoSimulation) return;
-
-  simulationTimer =
-    setInterval(
-      simulateSensorChange,
-      4000
-    );
-}
-
-
-function stopAutoSimulation() {
-
-  if (simulationTimer !== null) {
-
-    clearInterval(
-      simulationTimer
-    );
-
-    simulationTimer = null;
-  }
-}
-
-
-function updateAutoButton() {
-
-  const button =
-    get("auto-btn");
-
-  if (!button) return;
-
-  button.textContent =
-    autoSimulation
-      ? "⏸ Auto Simulation: ON"
-      : "▶ Auto Simulation: OFF";
-}
-
-
-get("auto-btn")
-  .addEventListener(
-    "click",
-    function () {
-
-      autoSimulation =
-        !autoSimulation;
-
-      updateAutoButton();
-
-      if (autoSimulation) {
-        startAutoSimulation();
-      }
-      else {
-        stopAutoSimulation();
-      }
-
-    }
-  );
-
-
-/* =========================================================
-   25. SIMULATE BUTTON
-   ========================================================= */
-
-get("simulate-btn")
-  .addEventListener(
-    "click",
-    function () {
-
-      simulateSensorChange();
-
-    }
-  );
-
-
-/* =========================================================
-   26. DEMO SCENARIO
-   ========================================================= */
-
-function runDemoScenario() {
-
-  demoMode = true;
-
-  /*
-    Create a clear scenario for presentation:
-    high occupancy + high temperature +
-    low natural light + lower air quality.
-  */
-
-  gateData.A1 = {
-
-    passengers: 225,
-
-    temperature: 28.5,
-
-    humidity: 64,
-
-    naturalLight: 28,
-
-    airQuality: 67,
-
-    water: 51
-  };
-
-
-  selectGate("A1");
-
-  updateDashboard();
+  updateGateSelection();
 
 
   /*
-    After a few seconds, demonstrate
-    the optimized condition.
-  */
+   * Current gate display
+   */
 
-  setTimeout(function () {
-
-    gateData.A1 = {
-
-      passengers: 135,
-
-      temperature: 24.2,
-
-      humidity: 50,
-
-      naturalLight: 82,
-
-      airQuality: 94,
-
-      water: 27
-    };
-
-
-    updateDashboard();
-
-    demoMode = false;
-
-  }, 6500);
-}
-
-
-get("demo-btn")
-  .addEventListener(
-    "click",
-    runDemoScenario
+  setText(
+    "current-gate",
+    selectedGate
   );
+}
 
 
 /* =========================================================
-   27. CSV EXPORT
-   ========================================================= */
-
-function exportCSV() {
-
-  if (!lastCalculation) return;
-
-  const d =
-    lastCalculation.data;
-
-  const dec =
-    lastCalculation.decisions;
-
-  const score =
-    lastCalculation.scoreData;
-
-
-  const rows = [
-
-    [
-      "EcoGate Sensor / Decision Data"
-    ],
-
-    [
-      "Gate",
-      "Passengers",
-      "Temperature °C",
-      "Humidity %",
-      "Natural Light %",
-      "Air Quality",
-      "Water L/hr",
-      "Energy kW",
-      "Eco Score",
-      "Lighting %",
-      "HVAC %",
-      "Ventilation %",
-      "Water Control %"
-    ],
-
-    [
-      selectedGateId,
-      Math.round(d.passengers),
-      d.temperature.toFixed(1),
-      Math.round(d.humidity),
-      Math.round(d.naturalLight),
-      Math.round(d.airQuality),
-      d.water.toFixed(1),
-      lastCalculation.energy.toFixed(1),
-      score.score,
-      Math.round(dec.lighting),
-      Math.round(dec.hvac),
-      Math.round(dec.ventilation),
-      Math.round(dec.waterControl)
-    ]
-
-  ];
-
-
-  const csv =
-    rows
-      .map(function (row) {
-
-        return row
-          .map(function (cell) {
-
-            const value =
-              String(cell)
-                .replace(/"/g, '""');
-
-            return `"${value}"`;
-
-          })
-          .join(",");
-
-      })
-      .join("\n");
-
-
-  const blob =
-    new Blob(
-      [csv],
-      {
-        type: "text/csv;charset=utf-8;"
-      }
-    );
-
-
-  const url =
-    URL.createObjectURL(blob);
-
-
-  const link =
-    document.createElement("a");
-
-  link.href =
-    url;
-
-  link.download =
-    "EcoGate_" +
-    selectedGateId +
-    "_data.csv";
-
-
-  document.body.appendChild(link);
-
-  link.click();
-
-  link.remove();
-
-  URL.revokeObjectURL(url);
-}
-
-
-get("export-btn")
-  .addEventListener(
-    "click",
-    exportCSV
-  );
-
-
-/* =========================================================
-   28. PRESENTATION MODE
-   ========================================================= */
-
-const tourSteps = [
-
-  {
-    selector: "#sensors",
-    title: "Live Sensor Data",
-    description:
-      "EcoGate receives simulated occupancy, temperature, humidity, light, air quality and water readings."
-  },
-
-  {
-    selector: "#gates",
-    title: "Airport Gate Map",
-    description:
-      "Each airport gate has its own simulated IoT environment and Eco Score."
-  },
-
-  {
-    selector: "#score",
-    title: "Eco Score",
-    description:
-      "The prototype combines energy, lighting, water, air quality and passenger comfort into one sustainability score."
-  },
-
-  {
-    selector: "#decision",
-    title: "Decision Engine",
-    description:
-      "Rule-based logic automatically decides lighting, HVAC, ventilation and water-control levels."
-  },
-
-  {
-    selector: "#actuators",
-    title: "Simulated Actuators",
-    description:
-      "The dashboard simulates virtual smart lights, HVAC, ventilation and water valves."
-  },
-
-  {
-    selector: "#analytics",
-    title: "Energy Analytics",
-    description:
-      "EcoGate estimates energy consumption and potential savings compared with a conventional baseline."
-  },
-
-  {
-    selector: "#architecture",
-    title: "IoT Architecture",
-    description:
-      "In a real deployment, ESP32 or Arduino sensors can send data through an IoT gateway to the decision engine."
-  }
-
-];
-
-
-let tourIndex = 0;
-
-
-function clearTourHighlight() {
-
-  document
-    .querySelectorAll(".tour-highlight")
-    .forEach(function (element) {
-
-      element.classList.remove(
-        "tour-highlight"
-      );
-
-    });
-
-
-  document
-    .querySelectorAll("main > section")
-    .forEach(function (section) {
-
-      section.classList.remove(
-        "tour-dimmed"
-      );
-
-    });
-}
-
-
-function showTourStep(index) {
-
-  if (
-    index < 0 ||
-    index >= tourSteps.length
-  ) {
-    return;
-  }
-
-
-  clearTourHighlight();
-
-
-  tourIndex =
-    index;
-
-
-  const step =
-    tourSteps[tourIndex];
-
-
-  const target =
-    document.querySelector(
-      step.selector
-    );
-
-
-  if (!target) return;
-
-
-  target.classList.add(
-    "tour-highlight"
-  );
-
-
-  document
-    .querySelectorAll("main > section")
-    .forEach(function (section) {
-
-      if (section !== target) {
-
-        section.classList.add(
-          "tour-dimmed"
-        );
-
-      }
-
-    });
-
-
-  get("tour-title").textContent =
-    step.title;
-
-  get("tour-description").textContent =
-    step.description;
-
-
-  get("tour-progress").style.width =
-    (
-      ((tourIndex + 1) /
-        tourSteps.length) *
-      100
-    ) + "%";
-
-
-  target.scrollIntoView({
-    behavior: "smooth",
-    block: "center"
-  });
-}
-
-
-function startPresentationMode() {
-
-  const bar =
-    get("tour-bar");
-
-  if (!bar) return;
-
-  bar.hidden = false;
-
-  document.body.classList.add(
-    "tour-active"
-  );
-
-  showTourStep(0);
-}
-
-
-function exitPresentationMode() {
-
-  const bar =
-    get("tour-bar");
-
-  if (!bar) return;
-
-  bar.hidden = true;
-
-  document.body.classList.remove(
-    "tour-active"
-  );
-
-  clearTourHighlight();
-}
-
-
-get("presentation-btn")
-  .addEventListener(
-    "click",
-    startPresentationMode
-  );
-
-
-get("tour-next")
-  .addEventListener(
-    "click",
-    function () {
-
-      if (
-        tourIndex <
-        tourSteps.length - 1
-      ) {
-
-        showTourStep(
-          tourIndex + 1
-        );
-
-      }
-      else {
-
-        exitPresentationMode();
-
-      }
-
-    }
-  );
-
-
-get("tour-prev")
-  .addEventListener(
-    "click",
-    function () {
-
-      if (tourIndex > 0) {
-
-        showTourStep(
-          tourIndex - 1
-        );
-
-      }
-
-    }
-  );
-
-
-get("tour-exit")
-  .addEventListener(
-    "click",
-    exitPresentationMode
-  );
-
-
-/* =========================================================
-   29. INITIALIZE APPLICATION
+   30. INITIALIZATION
    ========================================================= */
 
 function initializeEcoGate() {
+
+  setupControls();
+
+  setupNavigation();
 
   updateAutoButton();
 
   updateDashboard();
 
-  startAutoSimulation();
+  /*
+   * Initial energy readings
+   */
 
+  for (let i = 0; i < 6; i++) {
+
+    const data =
+      gateData[selectedGate];
+
+    const decisions =
+      calculateDecisions(data);
+
+    const energy =
+      calculateEnergy(
+        data,
+        decisions
+      );
+
+    energyHistory.push({
+      time: new Date(),
+      value: energy
+    });
+  }
+
+
+  updateEnergyChart();
+
+
+  /*
+   * Start automatic simulation.
+   */
+
+  if (autoSimulation) {
+
+    startAutoSimulation();
+  }
+
+
+  console.log(
+    "EcoGate initialized successfully."
+  );
+
+  console.log(
+    "Current Gate:",
+    selectedGate
+  );
+
+  console.log(
+    "Simulation Mode: ACTIVE"
+  );
 }
 
 
-/* Start */
+/* =========================================================
+   31. START APPLICATION
+   ========================================================= */
 
-initializeEcoGate();
+if (
+  document.readyState === "loading"
+) {
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeEcoGate
+  );
+
+} else {
+
+  initializeEcoGate();
+}
