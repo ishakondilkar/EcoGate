@@ -1,4 +1,4 @@
-```css
+
 :root {
   --bg: #07111f;
   --panel: #0d1b2b;
@@ -173,4 +173,3 @@ footer small { display: block; max-width: 700px; margin: 10px auto 0; font-size:
   .sensor-grid, .decision-grid, .actuator-grid, .analytics-grid { grid-template-columns: 1fr; }
   .section-heading { flex-direction: column; }
 }
-```
