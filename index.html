@@ -1,170 +1,161 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#07111f">
-  <title>EcoGate | Smart Sustainable Airport</title>
-  <link rel="stylesheet" href="style.css">
-  <script src="script.js" defer></script>
+<meta charset="UTF-8">
+<title>✈️ EcoGate – Smart Airport Gate Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<!-- Chart.js CDN – used for the energy analytics chart -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="#">
-      <span class="brand-icon">✈</span>
-      <span><strong>EcoGate</strong><small>SMART AIRPORT SYSTEM</small></span>
-    </a>
-    <nav>
-      <a href="#sensors">Sensors</a>
-      <a href="#gates">Gates</a>
-      <a href="#engine">Decision Engine</a>
-      <a href="#analytics">Analytics</a>
-    </nav>
-    <div class="live"><span class="pulse"></span> SIMULATION MODE</div>
-  </header>
+<header>
+  <h1>✈️ EcoGate</h1>
+  <p>IoT‑Based Smart Sustainable Airport Gate Management System</p>
+</header>
 
-  <main class="container">
-    <section class="hero">
-      <div>
-        <p class="eyebrow">SUSTAINABLE AVIATION · IoT INNOVATION</p>
-        <h1>Smarter gates.<br><span>Greener airports.</span></h1>
-        <p class="hero-text">Monitor airport conditions, optimize resource consumption and improve passenger comfort through an intelligent IoT simulation.</p>
-        <div class="hero-actions">
-          <button id="simulate-btn" class="btn primary">↻ Simulate Sensor Change</button>
-          <button id="demo-btn" class="btn secondary">▶ Run Demo Scenario</button>
-        </div>
-        <p class="muted small">Software simulation · No physical sensors connected</p>
+<main>
+  <!-- Controls -->
+  <section id="controls" class="card">
+    <button id="simulateBtn">Simulate Sensor Change</button>
+    <button id="autoBtn">Auto Simulation OFF</button>
+    <button id="demoBtn">🎬 Demo Scenario</button>
+  </section>
+
+  <!-- Live Sensor Data -->
+  <section id="sensors" class="grid">
+    <div class="sensor-card" id="occupancyCard">
+      <h3>👥 Passenger Occupancy</h3>
+      <p id="occupancyValue">0</p>
+      <p>Passengers</p>
+    </div>
+    <div class="sensor-card" id="tempCard">
+      <h3>🌡️ Temperature</h3>
+      <p id="tempValue">0°C</p>
+    </div>
+    <div class="sensor-card" id="humidityCard">
+      <h3>💧 Humidity</h3>
+      <p id="humidityValue">0%</p>
+    </div>
+    <div class="sensor-card" id="lightCard">
+      <h3>☀️ Natural Light</h3>
+      <p id="lightValue">0%</p>
+    </div>
+    <div class="sensor-card" id="airCard">
+      <h3>🌬️ Air Quality</h3>
+      <p id="airValue">0</p>
+    </div>
+    <div class="sensor-card" id="energyCard">
+      <h3>⚡ Energy Consumption</h3>
+      <p id="energyValue">0 kW</p>
+    </div>
+    <div class="sensor-card" id="waterCard">
+      <h3>💦 Water Usage</h3>
+      <p id="waterValue">0 L</p>
+    </div>
+  </section>
+
+  <!-- Smart Recommendations -->
+  <section id="recommendations" class="card">
+    <h2>🤖 EcoGate Smart Recommendations</h2>
+    <ul id="recList"></ul>
+  </section>
+
+  <!-- Actuator Simulation -->
+  <section id="actuators" class="grid">
+    <div class="actuator-card">
+      <h3>💡 Smart Lights</h3>
+      <p id="lightAct">0%</p>
+      <p id="lightActStatus">NORMAL</p>
+    </div>
+    <div class="actuator-card">
+      <h3>❄️ HVAC</h3>
+      <p id="hvacAct">LOW</p>
+      <p id="hvacActStatus">ACTIVE</p>
+    </div>
+    <div class="actuator-card">
+      <h3>🌬️ Ventilation</h3>
+      <p id="ventAct">NORMAL</p>
+      <p id="ventActStatus">ACTIVE</p>
+    </div>
+    <div class="actuator-card">
+      <h3>💧 Water Management</h3>
+      <p id="waterAct">OPTIMAL</p>
+      <p id="waterActStatus">NORMAL</p>
+    </div>
+  </section>
+
+  <!-- Eco Score -->
+  <section id="ecoscore" class="card">
+    <h2>🌱 Eco Score</h2>
+    <canvas id="scoreChart" width="200" height="200"></canvas>
+    <p id="scoreLabel">0 / 100</p>
+  </section>
+
+  <!-- Alerts -->
+  <section id="alerts" class="card">
+    <h2>⚠️ Alerts</h2>
+    <ul id="alertList"></ul>
+  </section>
+
+  <!-- Airport Gate Map -->
+  <section id="gateMap" class="card">
+    <h2>🏢 Airport Gate Map</h2>
+    <div class="gate-grid">
+      <div class="gate" id="gateA1"><span>Gate A1</span></div>
+      <div class="gate" id="gateA2"><span>Gate A2</span></div>
+      <div class="gate" id="gateA3"><span>Gate A3</span></div>
+      <div class="gate" id="gateA4"><span>Gate A4</span></div>
+    </div>
+    <div id="gateDetails" class="gate-info"></div>
+  </section>
+
+  <!-- Energy Analytics -->
+  <section id="energyAnalytics" class="card">
+    <h2>⚡ Energy Analytics</h2>
+    <p>Current Energy Consumption: <span id="currentEnergy">0 kW</span></p>
+    <p>Daily Estimated Energy: <span id="dailyEnergy">0 kWh</span></p>
+    <p>Estimated Energy Saved: <span id="savedEnergy">0 kWh</span></p>
+    <canvas id="energyChart" width="400" height="200"></canvas>
+  </section>
+
+  <!-- Before vs After -->
+  <section id="beforeAfter" class="card">
+    <h2>📊 Before vs After</h2>
+    <div class="comparison">
+      <div class="box">
+        <h3>CONVENTIONAL APPROACH</h3>
+        <ul>
+          <li>Lighting: Always ON</li>
+          <li>HVAC: Fixed operation</li>
+          <li>Water: Fixed usage</li>
+          <li>Decision‑making: Manual</li>
+        </ul>
       </div>
-      <div class="hero-card">
-        <span class="plane">✈</span>
-        <p class="muted">CURRENT GATE</p>
-        <h2 id="current-gate">A1</h2>
-        <div class="status"><span class="pulse"></span> SYSTEM OPERATIONAL</div>
-        <p class="muted small" id="clock">--:--:--</p>
+      <div class="box">
+        <h3>ECOGATE</h3>
+        <ul>
+          <li>Lighting: Adaptive</li>
+          <li>HVAC: Occupancy‑based</li>
+          <li>Water: Monitored</li>
+          <li>Decision‑making: Automated</li>
+        </ul>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="control-strip">
-      <div><span class="muted">AUTO SIMULATION</span><strong id="auto-status">ON · Every 4 seconds</strong></div>
-      <button id="auto-btn" class="btn secondary">Pause Simulation</button>
-      <button id="export-btn" class="btn secondary">↓ Export CSV</button>
-      <button id="presentation-btn" class="btn secondary">▣ Presentation Mode</button>
-    </section>
+  <!-- IoT Architecture -->
+  <section id="architecture" class="card">
+    <h2>🧩 IoT Architecture</h2>
+    <p>Sensors → IoT Data Collection → Data Processing → EcoGate Decision Engine → Simulated Actuators → Dashboard & Sustainability Analysis.</p>
+    <p><strong>Note:</strong> This prototype uses simulated sensor data.</p>
+  </section>
+</main>
 
-    <section id="sensors" class="section">
-      <div class="section-heading">
-        <div><p class="eyebrow">01 / LIVE MONITORING</p><h2>Environmental Sensors</h2></div>
-        <span class="tag">SIMULATED DATA</span>
-      </div>
-      <div class="sensor-grid">
-        <article class="sensor card"><span class="sensor-icon">👥</span><p>Passenger Occupancy</p><strong id="passengers">40</strong><small>passengers</small></article>
-        <article class="sensor card"><span class="sensor-icon">🌡️</span><p>Temperature</p><strong id="temperature">24 °C</strong><small>ambient temperature</small></article>
-        <article class="sensor card"><span class="sensor-icon">💧</span><p>Humidity</p><strong id="humidity">45%</strong><small>relative humidity</small></article>
-        <article class="sensor card"><span class="sensor-icon">☀️</span><p>Natural Light</p><strong id="natural-light">80%</strong><small>daylight availability</small></article>
-        <article class="sensor card"><span class="sensor-icon">🌬️</span><p>Air Quality</p><strong id="air-quality">85 AQ</strong><small>simulated index / 100</small></article>
-        <article class="sensor card"><span class="sensor-icon">⚡</span><p>Energy Consumption</p><strong id="energy">20 kW</strong><small>estimated power demand</small></article>
-        <article class="sensor card"><span class="sensor-icon">🚰</span><p>Water Usage</p><strong id="water">18 L/hr</strong><small>estimated consumption</small></article>
-      </div>
-    </section>
+<footer>
+  <p>EcoGate is a software‑based IoT simulation prototype. Sensor and actuator values are simulated for demonstration. In real‑world deployment, these components can be connected using ESP32/Arduino, IoT gateways and cloud platforms.</p>
+</footer>
 
-    <section id="gates" class="section">
-      <div class="section-heading">
-        <div><p class="eyebrow">02 / TERMINAL OVERVIEW</p><h2>Airport Gate Map</h2></div>
-        <span class="muted small">Select a gate to inspect its data</span>
-      </div>
-      <div class="gate-layout card">
-        <div class="terminal">
-          <div class="terminal-top"><span>✈ DEPARTURES TERMINAL</span><span>SECURITY CHECK</span></div>
-          <div class="terminal-services">
-            <span>🛍 Retail</span><span>☕ Lounge</span><span>🚻 Washrooms</span>
-          </div>
-          <div class="gate-grid">
-            <button class="gate-btn active" data-gate="A1"><span>GATE A1</span><strong id="status-A1">--</strong><small>Eco Score <b id="gc-score-A1">--</b></small></button>
-            <button class="gate-btn" data-gate="A2"><span>GATE A2</span><strong id="status-A2">--</strong><small>Eco Score <b id="gc-score-A2">--</b></small></button>
-            <button class="gate-btn" data-gate="A3"><span>GATE A3</span><strong id="status-A3">--</strong><small>Eco Score <b id="gc-score-A3">--</b></small></button>
-            <button class="gate-btn" data-gate="A4"><span>GATE A4</span><strong id="status-A4">--</strong><small>Eco Score <b id="gc-score-A4">--</b></small></button>
-          </div>
-          <div class="runway">━━━━━━━━━━━━━━ ✈ ━━━━━━━━━━━━━━<br><small>RUNWAY / TAXIWAY</small></div>
-        </div>
-        <div class="score-panel">
-          <p class="eyebrow">SUSTAINABILITY INDEX</p>
-          <div class="score-ring" id="score-ring"><div><strong id="eco-score">--</strong><span>/ 100</span></div></div>
-          <h3 id="score-label">Calculating...</h3>
-          <p class="muted small">Illustrative Eco Score based on simulated readings</p>
-          <div class="score-row"><span>Energy Efficiency</span><b id="energy-score">--</b></div>
-          <div class="meter"><span id="energy-meter"></span></div>
-          <div class="score-row"><span>Lighting Efficiency</span><b id="lighting-score">--</b></div>
-          <div class="meter"><span id="lighting-meter"></span></div>
-          <div class="score-row"><span>Water Efficiency</span><b id="water-score">--</b></div>
-          <div class="meter"><span id="water-meter"></span></div>
-          <div class="score-row"><span>Air Quality</span><b id="air-score">--</b></div>
-          <div class="meter"><span id="air-meter"></span></div>
-          <div class="score-row"><span>Passenger Comfort</span><b id="comfort-score">--</b></div>
-          <div class="meter"><span id="comfort-meter"></span></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="engine" class="section">
-      <div class="section-heading"><div><p class="eyebrow">03 / AUTOMATION</p><h2>Intelligent Decision Engine</h2></div><span class="tag green">RULE-BASED LOGIC</span></div>
-      <p class="muted">Sensor readings are processed into suggested operating levels. These are simulated actions, not commands to real equipment.</p>
-      <div class="decision-grid">
-        <article class="card decision"><span class="sensor-icon">💡</span><h3>Smart Lighting</h3><strong id="lighting-decision">--</strong><div class="meter"><span id="lighting-decision-meter"></span></div><p id="lighting-reason">Waiting for readings...</p></article>
-        <article class="card decision"><span class="sensor-icon">❄️</span><h3>HVAC Control</h3><strong id="hvac-decision">--</strong><div class="meter"><span id="hvac-meter"></span></div><p id="hvac-reason">Waiting for readings...</p></article>
-        <article class="card decision"><span class="sensor-icon">🌬️</span><h3>Ventilation</h3><strong id="ventilation-decision">--</strong><div class="meter"><span id="ventilation-meter"></span></div><p id="ventilation-reason">Waiting for readings...</p></article>
-        <article class="card decision"><span class="sensor-icon">🚰</span><h3>Water Management</h3><strong id="water-decision">--</strong><div class="meter"><span id="water-decision-meter"></span></div><p id="water-reason">Waiting for readings...</p></article>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-heading"><div><p class="eyebrow">04 / VIRTUAL EQUIPMENT</p><h2>Simulated Actuator Control</h2></div><span class="tag">VIRTUAL ONLY</span></div>
-      <div class="actuator-grid">
-        <article class="card actuator"><h3>💡 Lighting</h3><strong id="actuator-light-percent">--</strong><div class="meter"><span id="act-light-meter"></span></div><p id="actuator-light-state">--</p></article>
-        <article class="card actuator"><h3>❄️ HVAC</h3><strong id="actuator-hvac-percent">--</strong><div class="meter"><span id="act-hvac-meter"></span></div><p id="actuator-hvac-state">--</p></article>
-        <article class="card actuator"><h3>🌬️ Ventilation</h3><strong id="actuator-ventilation-percent">--</strong><div class="meter"><span id="act-vent-meter"></span></div><p id="actuator-ventilation-state">--</p></article>
-        <article class="card actuator"><h3>🚰 Water System</h3><strong id="actuator-water-percent">--</strong><div class="meter"><span id="act-water-meter"></span></div><p id="actuator-water-state">--</p></article>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-heading"><div><p class="eyebrow">05 / ACTIONABLE INSIGHTS</p><h2>Smart Recommendations</h2></div></div>
-      <div id="recommendations-list" class="recommendations card"></div>
-    </section>
-
-    <section id="analytics" class="section">
-      <div class="section-heading"><div><p class="eyebrow">06 / RESOURCE ANALYTICS</p><h2>Energy Analytics</h2></div></div>
-      <div class="analytics-grid">
-        <article class="card stat"><p>Current Power Demand</p><strong id="current-energy">--</strong><small>estimated kW</small></article>
-        <article class="card stat"><p>Projected Daily Energy</p><strong id="daily-energy">--</strong><small>12-hour operating estimate</small></article>
-        <article class="card stat"><p>Estimated Energy Reduction</p><strong id="energy-saved">--</strong><small>versus illustrative baseline</small></article>
-      </div>
-      <article class="card chart-card"><h3>Recent Power Readings</h3><div id="energy-chart" class="energy-chart"></div><div class="chart-legend"><span>● Estimated power demand (kW)</span><span id="chart-range">Last readings</span></div></article>
-    </section>
-
-    <section class="section">
-      <div class="section-heading"><div><p class="eyebrow">07 / SYSTEM MONITORING</p><h2>Alerts & Notifications</h2></div></div>
-      <div id="alert-stream" class="alerts card"></div>
-    </section>
-
-    <section class="section">
-      <div class="section-heading"><div><p class="eyebrow">08 / SYSTEM ARCHITECTURE</p><h2>How EcoGate Works</h2></div></div>
-      <div class="architecture card">
-        <div><span>01</span><strong>Sensors</strong><small>Occupancy, light, air, temperature</small></div>
-        <b>→</b><div><span>02</span><strong>Data Collection</strong><small>Read and organize measurements</small></div>
-        <b>→</b><div><span>03</span><strong>Decision Engine</strong><small>Apply sustainability rules</small></div>
-        <b>→</b><div><span>04</span><strong>Actuators</strong><small>Simulate optimized actions</small></div>
-      </div>
-      <p class="muted small architecture-note">Future integration could use ESP32/Arduino devices, MQTT messaging and a cloud database. These integrations are not implemented in this prototype.</p>
-    </section>
-
-    <footer><strong>EcoGate</strong> · IoT-Based Smart Sustainable Airport Management<br><small>Educational prototype. Sensor values, scores, energy estimates and actuator states are simulated and are not certified environmental measurements.</small></footer>
-  </main>
-
-  <div id="tour-bar" class="tour-bar">
-    <div><span class="eyebrow">ECOGATE PRESENTATION</span><h3 id="tour-title">Welcome</h3><p id="tour-description"></p></div>
-    <div class="tour-actions"><span id="tour-progress">1 / 5</span><button id="tour-prev" class="btn secondary">←</button><button id="tour-next" class="btn primary">Next →</button><button id="tour-exit" class="btn secondary">Exit</button></div>
-  </div>
+<script src="script.js" defer></script>
 </body>
 </html>
-```
